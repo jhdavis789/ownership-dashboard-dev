@@ -188,6 +188,11 @@
         <p class="sub">Crypto skews young; investment gold/metals skews old. Crypto ownership is ~7× higher among under-35s than over-75s, while gold/metals ownership rises with age (peak near retirement). (Metals cells are thin — direction robust, levels noisy.)</p>
         <div class="chartbox"><canvas id="ageChart"></canvas></div>
       </div>
+      <div class="card" style="grid-column:1/-1">
+        <h3>Lorenz curves — the concentration spectrum</h3>
+        <p class="sub">The further a curve bows below the diagonal, the more concentrated. India's gold hugs equality (broadly held); US gold bows more; bitcoin's address-naive curve is extreme (and overstated by exchange/ETF wallets — the honest individual-holder curve sits between US gold and this).</p>
+        <div class="chartbox tall"><canvas id="lorenzChart"></canvas></div>
+      </div>
     </div>
     <p class="note">Gold concentration is modeled from wealth/asset surveys; bitcoin individual concentration is anchored to on-chain de-anonymisation (Makarov-Schoar 2020) and the US SCF. See methodology.</p>
   </div>
@@ -466,6 +471,45 @@ function cmpUsChart() {
   });
 }
 
+function goldLorenz(iso) {
+  var c = DATA.gold.countries[iso];
+  if (!c) return null;
+  var upper = c.top10 - c.top1;
+  var x = [0, 50, 90, 99, 100];
+  var cum = [0, c.bottom50, c.bottom50 + c.p50p90, c.bottom50 + c.p50p90 + upper, 100];
+  return x.map(function (xi, i) { return { x: xi, y: +cum[i].toFixed(2) }; });
+}
+
+function btcLorenz() {
+  var bands = DATA.btc.bands.slice().sort(function (a, b) { return a.mean_balance_btc - b.mean_balance_btc; });
+  var totA = 0, totB = 0;
+  bands.forEach(function (b) { totA += b.addresses; totB += b.btc_held; });
+  var pts = [{ x: 0, y: 0 }], ca = 0, cb = 0;
+  bands.forEach(function (b) { ca += b.addresses; cb += b.btc_held; pts.push({ x: +(100 * ca / totA).toFixed(2), y: +(100 * cb / totB).toFixed(2) }); });
+  return pts;
+}
+
+function lorenzChart() {
+  make("lorenzChart", {
+    type: "line",
+    data: {
+      datasets: [
+        { label: "Perfect equality", data: [{ x: 0, y: 0 }, { x: 100, y: 100 }], borderColor: CG.slate, borderDash: [6, 5], pointRadius: 0, borderWidth: 1.5 },
+        { label: "Gold — India (broad)", data: goldLorenz("IND"), borderColor: CG.teal, backgroundColor: CG.teal, pointRadius: 3, fill: false },
+        { label: "Gold — United States", data: goldLorenz("USA"), borderColor: CG.gold, backgroundColor: CG.gold, pointRadius: 3, fill: false },
+        { label: "Bitcoin (address-naive)", data: btcLorenz(), borderColor: CG.navy, backgroundColor: CG.navy, pointRadius: 2, fill: false }
+      ]
+    },
+    options: baseOpts({
+      plugins: { legend: { position: "top" }, tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ": bottom " + ctx.parsed.x + "% hold " + ctx.parsed.y + "%"; } } } },
+      scales: {
+        x: { type: "linear", min: 0, max: 100, title: { display: true, text: "cumulative % of people (poorest → richest)" }, grid: { color: CG.grid } },
+        y: { min: 0, max: 100, title: { display: true, text: "cumulative % of the asset held" }, grid: { color: CG.grid } }
+      }
+    })
+  });
+}
+
 function ageChart() {
   var a = DATA.scf.by_age;
   if (!a) return;
@@ -548,7 +592,7 @@ function boot() {
   goldConcentrationChart(); goldArchetypeChart(); goldHistoryChart(); goldPerCapChart(); goldTable();
   btcWaterfallChart(); btcConcCompareChart(); btcCountryChart(); btcAdoptionChart(); btcScfChart();
   btcWhaleTable(); btcCountryTable();
-  cmpUsChart(); cmpSpectrumChart(); ageChart();
+  cmpUsChart(); cmpSpectrumChart(); ageChart(); lorenzChart();
   initTabs(); initModal();
 }
 
